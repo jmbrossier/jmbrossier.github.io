@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Examen : IA et Machine Learning</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; line-height: 1.6; padding: 20px; margin: 0; }
+        .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; text-align: center; font-size: 2.2em; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #7f8c8d; margin-bottom: 25px; font-style: italic; }
+        
+        /* Barre fixe en haut pour le score et le timer */
+        #top-bar { position: sticky; top: 0; background: #2c3e50; color: white; padding: 15px 20px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 30px; }
+        .stat-box { font-size: 1.2em; font-weight: bold; }
+        #timer { color: #f1c40f; }
+        .warning-time { color: #e74c3c !important; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+        
+        .question-block { margin-bottom: 40px; padding: 25px; border: 1px solid #e1e8ed; border-radius: 8px; background-color: #fafbfc; }
+        .question { font-size: 1.15em; font-weight: bold; margin-bottom: 15px; color: #2c3e50; }
+        .options { list-style-type: none; padding: 0; }
+        .options li { margin-bottom: 10px; }
+        .btn { display: block; width: 100%; padding: 15px; background: #fff; border: 2px solid #bdc3c7; border-radius: 5px; cursor: pointer; text-align: left; font-size: 1em; transition: all 0.2s; color: #34495e; }
+        .btn:hover:not(:disabled) { background: #eef2f5; border-color: #95a5a6; }
+        
+        .btn.correct { background: #d4edda !important; border-color: #2ecc71 !important; color: #155724 !important; font-weight: bold; }
+        .btn.wrong { background: #f8d7da !important; border-color: #e74c3c !important; color: #721c24 !important; }
+        .btn:disabled { cursor: default; }
+        
+        .rationale { margin-top: 20px; padding: 15px; background: #e8f4f8; border-left: 5px solid #3498db; display: none; font-size: 0.95em; color: #2980b9; border-radius: 0 4px 4px 0; }
+        .feedback-title { display: block; font-size: 1.1em; margin-bottom: 8px; }
+        
+        /* Bouton Terminer */
+        #finish-btn { display: block; width: 100%; padding: 15px; font-size: 1.2em; font-weight: bold; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 20px; transition: 0.3s; }
+        #finish-btn:hover { background: #2980b9; }
+
+        /* Écran de fin (Modal) */
+        #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; }
+        #modal-content { background: white; padding: 40px; border-radius: 10px; text-align: center; max-width: 500px; width: 90%; }
+        #modal-content h2 { color: #2c3e50; margin-top: 0; }
+        #final-score-display { font-size: 3em; font-weight: bold; color: #2ecc71; margin: 20px 0; }
+        .input-group { margin: 20px 0; text-align: left; }
+        .input-group input { width: 100%; padding: 12px; font-size: 1em; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        #send-email-btn { display: inline-block; background: #2ecc71; color: white; padding: 15px 25px; text-decoration: none; font-weight: bold; border-radius: 5px; font-size: 1.1em; pointer-events: none; opacity: 0.5; transition: 0.3s;}
+        #send-email-btn.active { pointer-events: auto; opacity: 1; }
+        #send-email-btn.active:hover { background: #27ae60; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Examen : IA & Machine Learning</h1>
+    <div class="subtitle">Ce test est chronométré. Une fois le temps écoulé, le formulaire sera verrouillé.</div>
+    
+    <div id="top-bar">
+        <div class="stat-box">Score actuel : <span id="score">0</span> / 40</div>
+        <div class="stat-box" id="timer">Temps restant : 25:00</div>
+    </div>
+    
+    <div id="quiz"></div>
+    
+    <button id="finish-btn" onclick="endQuiz(false)">Terminer l'évaluation</button>
+</div>
+
+<div id="modal-overlay">
+    <div id="modal-content">
+        <h2 id="modal-title">Évaluation terminée !</h2>
+        <p>Votre score final est de :</p>
+        <div id="final-score-display">0 / 40</div>
+        
+        <div class="input-group">
+            <label for="student-name"><strong>Veuillez entrer votre Prénom et Nom :</strong></label>
+            <input type="text" id="student-name" placeholder="Ex: Jean Dupont" oninput="updateMailBtn()">
+        </div>
+        
+        <a href="#" id="send-email-btn">Envoyer ma note au professeur</a>
+    </div>
+</div>
+
+<script>
+// --- CONFIGURATION DU PROFESSEUR ---
+const PROFESSOR_EMAIL = "jean-marc.brossier@grenoble-inp.fr"; // <-- MODIFIEZ CETTE ADRESSE !
+const TIME_LIMIT_MINUTES = 10; // Temps en minutes
+
+const quizData = [
+    // --- CHAPITRES 1 à 4 : Théorie PAC, VC, MRE ---
+    { q: "1. Que signifie l'acronyme PAC dans la théorie de l'apprentissage (Valiant, 1984) ?", opts: ["Predictive Algorithm Classification", "Probably Approximately Correct", "Principal Analysis Components", "Polynomial Approximation Curve"], ans: 1, exp: "'Probably Approximately Correct' signifie que l'on cherche à garantir avec une forte probabilité (1-δ) que l'erreur de généralisation sera faible." },
+    { q: "2. Quelle est la définition de la Dimension de Vapnik-Chervonenkis (VC) ?", opts: ["Le nombre minimum d'exemples nécessaires pour entraîner le modèle.", "La taille du plus grand ensemble de points que la classe d'hypothèses peut 'pulvériser'.", "Le nombre de paramètres du modèle.", "La dimension de l'espace des caractéristiques (d)."], ans: 1, exp: "C'est une mesure de l'expressivité du modèle. Si la dimension VC est infinie, le risque de surapprentissage est total." },
+    { q: "3. Pourquoi est-il mathématiquement difficile de minimiser directement le 'Risque Naturel' (Coût 0-1) ?", opts: ["Parce que la fonction indicatrice est non-convexe et sa dérivée est nulle presque partout.", "Parce qu'elle demande de connaître la loi de probabilité de l'univers.", "Parce qu'elle requiert une dimension VC infinie.", "Parce qu'elle provoque un sous-apprentissage."], ans: 0, exp: "C'est pour cela que l'on procède à la 'convexification' en utilisant des substituts comme le coût Hinge ou logistique." },
+    // --- CHAPITRES 5 à 8 : Régression & Régularisation ---
+    { q: "4. Quelle est la caractéristique principale de la régularisation LASSO (L1) par rapport à Ridge (L2) ?", opts: ["Elle empêche le surapprentissage sans annuler de variables.", "Elle favorise la parcimonie en annulant exactement certains coefficients.", "Elle transforme un problème non-convexe en un problème convexe.", "Elle ne s'applique qu'aux classifications."], ans: 1, exp: "Le LASSO effectue simultanément la régularisation et la sélection de variables (Rasoir d'Occam)." },
+    { q: "5. Dans la régression Ridge, l'ajout du terme λI à la matrice X^T X permet de :", opts: ["Rendre la matrice toujours inversible.", "Annuler les caractéristiques redondantes.", "Transformer la régression en classification.", "Réduire le temps de calcul."], ans: 0, exp: "Même si les variables sont colinéaires, l'ajout de λ sur la diagonale garantit que la matrice est de rang complet." },
+    // --- CHAPITRES 9 à 11 : Bayes, k-NN, SVM ---
+    { q: "6. Dans une classification QDA, qu'est-ce qui génère la forme quadratique des frontières ?", opts: ["L'utilisation d'un noyau polynomial.", "Le fait de supposer que chaque classe possède sa propre matrice de covariance.", "La minimisation d'une MSE.", "L'utilisation de la distance de Mahalanobis."], ans: 1, exp: "Contrairement à LDA (covariance globale), QDA estime une covariance par classe, empêchant les termes quadratiques de s'annuler." },
+    { q: "7. Quel est le principal inconvénient de l'algorithme k-NN en haute dimension ?", opts: ["Il nécessite des arbres profonds.", "Il ne trace pas de frontières non-linéaires.", "Il subit la malédiction de la dimension : tout le monde devient éloigné de tout le monde.", "Les données doivent être linéairement séparables."], ans: 2, exp: "Le nombre de données d'entraînement nécessaires croît de manière exponentielle avec la dimension." },
+    { q: "8. Dans une SVM, quel rôle jouent les 'vecteurs de support' ?", opts: ["Ce sont les barycentres des classes.", "Ce sont les points situés sur ou dans la marge, définissant l'hyperplan.", "Ce sont les composantes de l'ACP.", "Ce sont les points les plus éloignés de la frontière."], ans: 1, exp: "Dans la formulation duale, seuls les multiplicateurs de Lagrange associés à ces points critiques sont non nuls." },
+    { q: "9. Que représente la variable ressort (slack variable, ξ) dans un SVM à marge souple ?", opts: ["La dérivée de l'activation.", "Le taux d'apprentissage.", "Le degré d'erreur toléré pour un point qui viole la marge.", "L'écart-type gaussien."], ans: 2, exp: "Si ξ > 0, le point viole la marge, permettant au SVM de converger même si les données ne sont pas séparables." },
+    // --- CHAPITRE 14 : Méthodes à Noyaux ---
+    { q: "10. Quel est l'intérêt fondamental de l''Astuce du Noyau' (Kernel Trick) ?", opts: ["Accélérer la lecture du disque.", "Éviter d'avoir à calculer explicitement les coordonnées des points dans l'espace de redescription.", "Supprimer les outliers.", "Transformer un problème non-supervisé en supervisé."], ans: 1, exp: "Le théorème de Moore-Aronszajn garantit qu'il suffit d'évaluer le produit scalaire (via le noyau K) dans l'espace d'origine." },
+    { q: "11. Que permet de réaliser l'algorithme Kernel PCA par rapport à l'ACP classique ?", opts: ["Une réduction de dimensionnalité non-linéaire.", "Une classification avec marge maximale.", "L'estimation de mélanges gaussiens.", "Le tri de la base."], ans: 0, exp: "En diagonalisant la matrice de Gram centrée, le Kernel PCA extrait des composantes principales non-linéaires." },
+    // --- CHAPITRES 12 à 13 : Arbres et Ensembles ---
+    { q: "12. Dans l'algorithme CART, que mesure l'impureté de Gini ?", opts: ["La profondeur de l'arbre.", "La distance inter-nœuds.", "La probabilité de mal classer un exemple tiré au hasard selon la distribution locale.", "La variance du gradient."], ans: 2, exp: "Gini vaut 0 pour un nœud pur, et 0.5 pour un nœud parfaitement mélangé. L'arbre maximise ce gain." },
+    { q: "13. Comment procède l'élagage par 'complexité de coût' (Post-pruning) ?", opts: ["Arrêt à profondeur 5.", "Il minimise l'erreur empirique pénalisée par le nombre de feuilles de l'arbre.", "Suppression de 10% des branches.", "Transformation en réseau neuronal."], ans: 1, exp: "Formule R_alpha(T) = R(T) + alpha * |T|. Cela élimine les branches spécifiques causant du surapprentissage." },
+    { q: "14. Qu'est-ce qui différencie les Forêts Aléatoires d'un simple Bagging sur arbres ?", opts: ["Arbres entraînés séquentiellement.", "Profondeur limitée à 1.", "À chaque nœud, la division est cherchée parmi un sous-ensemble aléatoire de caractéristiques.", "Utilisation de l'Entropie."], ans: 2, exp: "Cette 'double randomisation' casse la forte corrélation entre les arbres et réduit la variance globale." },
+    { q: "15. Lors du Gradient Boosting, que cherche à prédire le nouvel arbre ajouté ?", opts: ["L'étiquette originale (y).", "Le pseudo-résidu (gradient négatif de la perte).", "L'incertitude du modèle précédent.", "La moyenne mobile."], ans: 1, exp: "On effectue une descente de gradient dans l'espace des fonctions en apprenant à corriger l'erreur du modèle précédent." },
+    // --- CHAPITRE 15 : Réseaux de Neurones ---
+    { q: "16. Selon le Théorème d'Approximation Universelle, de quoi est capable un réseau avec une seule couche cachée ?", opts: ["Converger sans descente de gradient.", "Approximer n'importe quelle fonction continue sur un compact avec une précision arbitraire.", "Éviter tout surapprentissage.", "Être parfaitement explicable."], ans: 1, exp: "Le réseau est un 'approximateur universel', prouvant sa capacité de représentation théorique." },
+    { q: "17. Quel calcul mathématique fonde la Rétropropagation du Gradient ?", opts: ["Inversion Hessienne.", "Transformée de Fourier.", "L'application récursive de la règle de la chaîne (chain rule) des dérivées.", "Inégalité de Jensen."], ans: 2, exp: "La règle de la chaîne permet de propager l'erreur de la sortie vers l'entrée à travers toutes les couches." },
+    { q: "18. Pourquoi utiliser ReLU plutôt que la Sigmoïde dans les réseaux profonds ?", opts: ["Dérivable en 0.", "Borne les valeurs entre -1 et 1.", "Empêche l'évanouissement du gradient (dérivée vaut 1 pour x > 0).", "Extrait des probabilités."], ans: 2, exp: "La Sigmoïde sature vite, bloquant l'apprentissage des premières couches. ReLU laisse le gradient circuler." },
+    { q: "19. Dans un CNN, quel est l'intérêt du 'partage des poids' (filtre glissant) ?", opts: ["Garantir l'invariance aux translations spatiales et réduire les paramètres.", "Générer des images.", "Ajouter une position absolue.", "Créer un auto-encodeur."], ans: 0, exp: "Si un réseau apprend une forme en haut à gauche, le filtre saura aussi la reconnaître en bas à droite." },
+    { q: "20. Quel mécanisme permet aux LSTM de résoudre l'oubli à long terme des RNN ?", opts: ["Pooling spatial.", "Auto-Attention.", "Un système de 'portes' (Forget, Input, Output) qui protège un flux d'information (Cell State).", "Régularisation LASSO temporelle."], ans: 2, exp: "Le 'Cell State' est une autoroute d'information temporelle, régulée par des portes différentiables." },
+    { q: "21. Dans les Transformers, à quoi sert l'Encodage Positionnel ?", opts: ["Compresser en patchs.", "Réintroduire l'ordre des mots, car l'Auto-Attention lit toute la phrase simultanément.", "Normaliser le gradient.", "Détecter les anomalies."], ans: 1, exp: "Sans cela, le Transformer considérerait la phrase comme un 'sac de mots' désordonné." },
+    // --- CHAPITRE 21 : Explicabilité (XAI) ---
+    { q: "22. Comment fonctionne la méthode LIME pour expliquer une boîte noire ?", opts: ["Extrait les poids d'une couche.", "Entraîne un modèle simple (ex: régression linéaire) localement, sur des échantillons perturbés.", "Calcule l'intégrale sous ROC.", "Applique Lance-Williams."], ans: 1, exp: "LIME part du principe que toute frontière, aussi complexe soit-elle, peut être approximée localement par un hyperplan." },
+    { q: "23. Quelle propriété issue de la Théorie des Jeux rend les valeurs SHAP 'uniques' ?", opts: ["La somme des contributions équivaut exactement à la différence entre la prédiction et l'espérance globale.", "S'exécute en O(log N).", "Transforme le modèle en Arbre.", "Empêche le surapprentissage."], ans: 0, exp: "C'est la propriété d'additivité stricte. Cela fait des valeurs de Shapley la seule distribution 'juste' du poids des variables." },
+    // --- CHAPITRE 17 : Non Supervisé ---
+    { q: "24. En non supervisé, que garantit l'algorithme EM à chaque itération ?", opts: ["L'optimum global de la vraisemblance.", "Que la log-vraisemblance incomplète ne peut pas décroître (croissance monotone).", "L'inversibilité de la covariance.", "Définit le K optimal."], ans: 1, exp: "La preuve repose sur l'inégalité de Jensen : l'étape E construit une borne inférieure (énergie libre) maximisée à l'étape M." },
+    { q: "25. Quel objet mathématique est au centre du Clustering Spectral ?", opts: ["Le Laplacien de graphe (construit à partir des similarités).", "Le filtre de Kalman.", "Le processus gaussien.", "Le VAE."], ans: 0, exp: "L'algorithme extrait les premiers vecteurs propres de cette matrice Laplacienne pour projeter les données." },
+    { q: "26. Pourquoi le t-SNE utilise-t-il une distribution de Student dans l'espace réduit ?", opts: ["Pour accélérer le calcul.", "Pour éviter le problème d'écrasement (crowding problem) inhérent à la réduction de dimension.", "C'est la seule loi différentiable.", "Pour interpoler les valeurs."], ans: 1, exp: "La loi de Student ayant des queues lourdes, elle espace artificiellement les clusters dans l'espace 2D." },
+    // --- CHAPITRE 16 : Métriques ---
+    { q: "27. Dans un contexte médical où manquer un malade (Faux Négatif) est inacceptable, quelle métrique maximiser ?", opts: ["La Précision", "La Spécificité", "Le Rappel (Sensibilité)", "L'Exactitude"], ans: 2, exp: "Le Rappel = VP / (VP + FN). Le maximiser force les Faux Négatifs à tendre vers zéro." },
+    { q: "28. Pourquoi le F1-Score utilise-t-il la moyenne HARMONIQUE ?", opts: ["Plus facile à dériver.", "Pénalise lourdement les modèles ayant une valeur extrême (ex: 100% rappel, 0% précision).", "Dépasse la valeur de 1.", "Gère les valeurs négatives."], ans: 1, exp: "La moyenne arithmétique de 1 et 0 donne 0.5. Leur moyenne harmonique donne 0, révélant l'inutilité du modèle." },
+    { q: "29. L'Aire Sous la Courbe ROC (AUC) possède une équivalence probabiliste. Laquelle ?", opts: ["Probabilité qu'un FP soit un VN.", "Espérance de l'erreur absolue.", "Probabilité qu'un exemple positif tiré au hasard reçoive un score plus élevé qu'un exemple négatif aléatoire.", "Dérivée de l'erreur de Bayes."], ans: 2, exp: "Statistique U de Mann-Whitney. Cela en fait une métrique de tri (ranking) robuste face au déséquilibre." },
+    // --- CHAPITRE 18 : Prétraitement ---
+    { q: "30. Pourquoi la standardisation (Z-score) est-elle cruciale pour la Régularisation Ridge/Lasso ?", opts: ["Équilibrer les classes.", "Éviter que la régularisation ne pénalise injustement les variables à petite échelle (qui nécessitent de gros poids).", "Supprimer les outliers.", "Convertir en catégories."], ans: 1, exp: "Le terme de pénalisation est isotrope. Sans standardisation, il écrasera l'impact des variables de faible amplitude." },
+    { q: "31. Quel biais introduit le 'Label Encoding' (1=Rouge, 2=Vert, 3=Bleu) ?", opts: ["Crée une relation d'ordre artificielle et des distances faussées.", "Explosion de dimensionnalité.", "Annule le gradient.", "Matrice non-inversible."], ans: 0, exp: "C'est pour résoudre ce problème hiérarchique absurde que l'on utilise le One-Hot Encoding (équidistance et orthogonalité)." },
+    // --- CHAPITRE 19 : Optimisation ---
+    { q: "32. Pour une fonction strictement convexe, que garantit ∇f(x) = 0 ?", opts: ["Point selle.", "Minimum global unique.", "Hessienne nulle.", "Divergence."], ans: 1, exp: "C'est la beauté de la convexité : l'optimisation locale trouve la solution globale absolue." },
+    { q: "33. En haute dimension (Deep Learning), quel est le piège topologique le plus fréquent pour le gradient ?", opts: ["Minima locaux stricts.", "Points selles (minimum dans une direction, maximum dans l'autre).", "Bifurcations.", "Espaces projectifs."], ans: 1, exp: "La probabilité d'avoir un vrai minimum local est infime par rapport à la probabilité d'avoir une 'selle'." },
+    { q: "34. L'optimiseur 'Adam' combine deux concepts :", opts: ["Inertie (Momentum) et taux d'apprentissage adaptatif par paramètre (RMSProp).", "Norme L1 et L2.", "Grid et Random Search.", "Entropie et MSE."], ans: 0, exp: "Adam accumule les gradients passés ET divise par la racine carrée des gradients au carré passés." },
+    // --- CHAPITRE 20 : Validation Croisée ---
+    { q: "35. Quel est le but d'un 'K-Fold Stratifié' ?", opts: ["Accélérer le calcul.", "Forcer chaque bloc à respecter rigoureusement la distribution d'origine des classes.", "Autoriser le chevauchement.", "Remplacer par le Bootstrap."], ans: 1, exp: "Indispensable pour éviter qu'un fold de validation ne se retrouve sans aucun cas de la classe minoritaire." },
+    { q: "36. Pourquoi le 'Random Search' est-il souvent supérieur au 'Grid Search' ?", opts: ["Moins de code.", "Explore un nombre de valeurs distinctes beaucoup plus grand pour les hyperparamètres réellement importants.", "Garantit l'optimum global.", "Calcule le gradient."], ans: 1, exp: "Pour N essais, la grille teste plusieurs fois la même valeur sur un axe, alors que l'aléatoire teste N valeurs distinctes." },
+    // --- CHAPITRE 22 : Séries Temporelles ---
+    { q: "37. Pourquoi la Validation Croisée K-Fold aléatoire est-elle une faute en Séries Temporelles ?", opts: ["Pas de variance.", "Provoque une fuite de données (Data Leakage) : entraîne sur le futur pour prédire le passé.", "Incompatible avec ARIMA.", "Supprime la stationnarité."], ans: 1, exp: "Le temps est unidirectionnel. Il faut utiliser une méthode de 'Backtesting' (fenêtre glissante)." },
+    { q: "38. Dans ARIMA(p,d,q), à quoi correspond le paramètre 'd' ?", opts: ["Jours de décalage.", "Erreur tolérée.", "Nombre de différenciations nécessaires pour rendre la série stationnaire.", "Couche cachée."], ans: 2, exp: "Si une série a une tendance linéaire, une différenciation d'ordre 1 (Y_t - Y_{t-1}) la rendra stationnaire." },
+    { q: "39. Pour utiliser des CNN sur des séries temporelles (TCN), quelle technique augmente la mémoire du passé ?", opts: ["Pooling spatial.", "Convolutions Causales et Dilatées.", "Encodeur-Décodeur.", "Positional Encoding."], ans: 1, exp: "La dilatation (sauter des points) agrandit le champ récepteur pour capter les dépendances lointaines sans exploser les calculs." },
+    { q: "40. Au-delà des RNN, quel est l'intérêt de l'Attention pour les séries temporelles ?", opts: ["Compresse en scalaire.", "Connecte directement chaque pas de temps à tous les autres, supprimant le goulot séquentiel.", "Remplace la normalisation.", "Force un processus de Markov."], ans: 1, exp: "Le chemin entre deux informations temporelles est de longueur O(1), peu importe la distance qui les sépare !" }
+];
+
+let score = 0;
+let timeRemaining = TIME_LIMIT_MINUTES * 60;
+let timerInterval;
+let quizLocked = false;
+
+const quizContainer = document.getElementById('quiz');
+const scoreDisplay = document.getElementById('score');
+const timerDisplay = document.getElementById('timer');
+
+// Initialisation du Timer
+function startTimer() {
+    timerInterval = setInterval(() => {
+        if(quizLocked) return;
+        
+        timeRemaining--;
+        let minutes = Math.floor(timeRemaining / 60);
+        let seconds = timeRemaining % 60;
+        
+        let timeString = `Temps restant : ${minutes}:${seconds < 10 ? '0'+seconds : seconds}`;
+        timerDisplay.innerText = timeString;
+        
+        if(timeRemaining <= 60) {
+            timerDisplay.classList.add('warning-time');
+        }
+        
+        if(timeRemaining <= 0) {
+            timerDisplay.innerText = "Temps écoulé !";
+            endQuiz(true);
+        }
+    }, 1000);
+}
+
+// Rendu des questions
+quizData.forEach((item, index) => {
+    const questionBlock = document.createElement('div');
+    questionBlock.className = 'question-block';
+    
+    const questionTitle = document.createElement('div');
+    questionTitle.className = 'question';
+    questionTitle.innerText = item.q;
+    questionBlock.appendChild(questionTitle);
+    
+    const optionsList = document.createElement('ul');
+    optionsList.className = 'options';
+    
+    const rationaleDiv = document.createElement('div');
+    rationaleDiv.className = 'rationale';
+
+    item.opts.forEach((opt, optIndex) => {
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.innerText = opt;
+        
+        btn.onclick = () => {
+            if(quizLocked) return; // Si le temps est écoulé, on ne peut plus cliquer
+            
+            const allBtns = optionsList.querySelectorAll('.btn');
+            allBtns.forEach(b => b.disabled = true);
+            
+            let feedbackHTML = "";
+            
+            if(optIndex === item.ans) {
+                btn.classList.add('correct');
+                score++;
+                scoreDisplay.innerText = score;
+                feedbackHTML = "<span class='feedback-title' style='color: #2ecc71;'>✅ Bonne réponse !</span>";
+            } else {
+                btn.classList.add('wrong');
+                allBtns[item.ans].classList.add('correct');
+                feedbackHTML = "<span class='feedback-title' style='color: #e74c3c;'>❌ Mauvaise réponse.</span>";
+            }
+            
+            rationaleDiv.innerHTML = `${feedbackHTML}<strong>Explication :</strong> ${item.exp}`;
+            rationaleDiv.style.display = 'block';
+        };
+        
+        li.appendChild(btn);
+        optionsList.appendChild(li);
+    });
+    
+    questionBlock.appendChild(optionsList);
+    questionBlock.appendChild(rationaleDiv);
+    quizContainer.appendChild(questionBlock);
+});
+
+// Lancer le timer au chargement
+startTimer();
+
+// Fonction de fin de Quiz
+function endQuiz(isTimeOut) {
+    quizLocked = true;
+    clearInterval(timerInterval);
+    
+    // Désactiver tous les boutons restants
+    const allBtns = document.querySelectorAll('.btn');
+    allBtns.forEach(b => b.disabled = true);
+    
+    // Afficher la modale de fin
+    document.getElementById('modal-overlay').style.display = 'flex';
+    document.getElementById('final-score-display').innerText = `${score} / ${quizData.length}`;
+    
+    if(isTimeOut) {
+        document.getElementById('modal-title').innerText = "Temps écoulé !";
+        document.getElementById('modal-title').style.color = "#e74c3c";
+    }
+}
+
+// Mise à jour du bouton d'envoi d'email
+function updateMailBtn() {
+    const name = document.getElementById('student-name').value.trim();
+    const mailBtn = document.getElementById('send-email-btn');
+    
+    if(name.length > 2) {
+        mailBtn.classList.add('active');
+        const subject = encodeURIComponent(`Résultat Examen IA - ${name}`);
+        const body = encodeURIComponent(`Bonjour,\n\nVoici le résultat de mon examen de Machine Learning :\n\nÉtudiant : ${name}\nScore Final : ${score} / ${quizData.length}\n\nCordialement.`);
+        mailBtn.href = `mailto:${PROFESSOR_EMAIL}?subject=${subject}&body=${body}`;
+    } else {
+        mailBtn.classList.remove('active');
+        mailBtn.href = "#";
+    }
+}
+</script>
+</body>
+</html>
